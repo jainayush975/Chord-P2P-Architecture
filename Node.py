@@ -1,7 +1,6 @@
 import socket
 import os
 import sys
-from Client import Client
 from Server import Server,client_connection
 
 
@@ -32,18 +31,26 @@ while True:
 	elif x[0]=="create_ring":
 		active_server.create_ring()
 		print "Ring created with only node in it",active_server.position
-		# print active_server.finger_table
+
 	elif x[0]=="join":
 		active_server.join(x[1],x[2])
 		print "Node joined succesfully"
+
 	elif x[0]=="find":
 		print active_server.find_succesor(x[1])
+
 	elif x[0]=="add_key":
-		print add_key(x[1])
+		print active_server.add_key(x[1])
+
+	elif x[0]=="find_key":
+		print "Required key is present on ", active_server.find_key(x[1])
+
+	elif x[0]=="print_table":
+		active_server.print_key_table()
+
 	elif x[0]=="close":
 		client_connection(ip,port,"close")
 		break
-		# print active_server.finger_table
 
 for t in threads:
 	t.join()
