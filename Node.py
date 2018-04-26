@@ -49,8 +49,14 @@ while True:
 		active_server.print_key_table()
 
 	elif x[0]=="close":
+		active_server.take_my_keys()
 		client_connection(ip,port,"close")
+		exit()
 		break
-
+	elif x[0]=="print_hb":
+		print active_server.hb_ip
+		print active_server.hb_port
+		print active_server.suc_hb_ip
+		print active_server.suc_hb_port
 for t in threads:
 	t.join()

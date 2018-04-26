@@ -1,7 +1,10 @@
 import socket
+import thread
+import threading
 from threading import Thread
 import os, time
 import json
+import random
 
 def client_connection(ipc,ptc,send_data):
     ipc = str(ipc)
@@ -29,9 +32,9 @@ class Server(Thread):
         self.ip = str(ip)
         self.port = int(port)
         self.hb_ip = self.ip
-        self.hb_port = int(random.randint(10000,11000))
-        self.suc_hb_ip = None
-        self.suc_hb_port = None
+        self.hb_port = int(random.randint(10000,21000))
+        self.suc_hb_ip = self.ip
+        self.suc_hb_port = self.hb_port
         self.total_node = int(total_node)
         self.socket_listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -46,7 +49,9 @@ class Server(Thread):
 
     def send_heart_beat(self):
         threading.Timer(5.0, self.send_heart_beat).start()
-        client_connection(self.suc_hb_ip, self.suc_hb_port, "I am alive")
+        # print "in heartbead"
+        if self.suc_hb_ip != "None":
+            client_connection(self.suc_hb_ip, self.suc_hb_port, "I am alive")
         return
 
     def listen_heart_beat(self):
@@ -54,19 +59,34 @@ class Server(Thread):
         hb_listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         hb_listen.bind((self.hb_ip, self.hb_port))
         hb_listen.listen(5)
-        hb_listen.settimeout(8)
+        hb_listen.settimeout(15.0)
         while True:
             data = "dead"
-            conn, addr = hb_listen.accept()
-            data = conn.recv(1024)
-            send_data = "ok"
-            if data != "I am alive":
-                repair_failure()
-            else:
+            try:
+                conn, addr = hb_listen.accept()
+                data = conn.recv(1024)
+                # print data
+                send_data = "ok"
                 conn.send(send_data)
-            conn.close()
+                conn.close()
+            except:
+                print "predecessor down"
+                if self.predecessor[0]==self.finger_table[0][0]:
+                    self.predecessor = [self.position,self.ip,self.port]
+                    for i in range(self.M):
+                        self.finger_table[i] = [self.position,self.ip,self.port]
+                    self.suc_hb_ip = self.hb_ip
+                    self.suc_hb_port = self.hb_port
+                else:
+                    self.update_finger(self.predecessor[0],self.position,self.ip,self.port,"Failsafe")
+                    self.repair_failure()
+
         self.socket_listen.close()
 
+    def repair_failure(self):
+        print "makichud"
+        send_data = "repair_failure "+str(self.predecessor[0])+" "+ str(self.position)+" "+str(self.ip)+" "+str(self.port)+ " "+str(self.hb_ip)+" "+str(self.hb_port)
+        data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
     def print_key_table(self):
         print "Key Table is "
         for key in self.key_table:
@@ -77,6 +97,8 @@ class Server(Thread):
         self.predecessor = [self.position,self.ip,self.port]
         for i in range(self.M):
             self.finger_table[i] = [self.position,self.ip,self.port]
+        self.send_heart_beat()
+        thread.start_new_thread(self.listen_heart_beat, ())
 
     def cpn(self,sid):
         for i in range(self.M-1,-1,-1):
@@ -134,9 +156,9 @@ class Server(Thread):
         data = data.strip()
         data = data.split()
         self.predecessor = data
-        send_data = "update_your_successor " + convert_to_string([self.position,self.ip,self.port])
+        send_data = "update_your_successor " + convert_to_string([self.position,self.ip,self.port])+" "+str(self.hb_ip)+" "+str(self.hb_port)
         data = client_connection(data[1],int(data[2]),send_data)
-        self.update_finger(0,self.total_node-1,0,0,True)
+        self.update_finger(0,self.total_node-1,0,0,"True")
         send_data = "ring_update "+str(self.predecessor[0])+" "+ str(self.position)+" "+str(self.ip)+" "+str(self.port)
         data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
         send_data = "get_my_keys "+str(self.predecessor[0])
@@ -148,18 +170,26 @@ class Server(Thread):
         data = data.split()
         self.suc_hb_ip = data[0]
         self.suc_hb_port = data[1]
+        self.send_heart_beat()
+        thread.start_new_thread(self.listen_heart_beat, ())
+
+
     def update_finger(self,x,y,yip,yport,flag):
+        print x
         x = int(x)
         y = int(y)
         for i in range(1,self.M):
-            if flag:
+            if flag=="True":
                 send_data = "find_succesor " + str((self.position+2**i)%self.total_node)
                 data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
                 data = data.strip()
                 data = data.split()
                 self.finger_table[i] = data
-            else:
+            elif flag=="False":
                 if self.belongTofunction((self.position+2**i)%self.total_node,x,y,True):
+                    self.finger_table[i] = [y,yip,yport]
+            elif flag=="Failsafe":
+                if self.finger_table[i][0]==x:
                     self.finger_table[i] = [y,yip,yport]
 
     def add_key(self,key):
@@ -185,7 +215,7 @@ class Server(Thread):
         return data
 
     def retrieve_key(self, key):
-        return str(self.key_table[key][0]) + " " + str(self.key_table[key][1])
+        return str(self.key_table[key][0]) + "#" + str(self.key_table[key][1])
 
     def others_key_entry(self,l,r):
         send_dic = {}
@@ -198,12 +228,16 @@ class Server(Thread):
                 ac_dic[key] = self.key_table[key]
         self.key_table = ac_dic
         return send_dic
+
+    def take_my_keys(self):
+        x = json.dumps(self.key_table)
+        send_data = "take_my_keys "+x
+        data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
     def run(self):
-        self.send_heart_beat()
-        thread.start_new_thread(self.listen_heart_beat, ())
         while True:
             conn, addr = self.socket_listen.accept()
             data = conn.recv(1024)
+            acdata = data
             data = data.strip()
             data = data.split()
             if data[0]=="find_succesor":
@@ -221,12 +255,14 @@ class Server(Thread):
                 self.finger_table[0][0] = data[1]
                 self.finger_table[0][1] = data[2]
                 self.finger_table[0][2] = data[3]
+                self.suc_hb_ip = data[4]
+                self.suc_hb_port = data[5]
                 send_data = "ok"
                 conn.send(send_data)
 
             elif data[0]=="ring_update":
                 if int(data[2])!=self.position:
-                    self.update_finger(data[1],data[2],data[3],data[4],False)
+                    self.update_finger(data[1],data[2],data[3],data[4],"False")
                     send_data = "ring_update "+data[1]+" "+data[2]+" "+data[3]+" "+data[4]
                     data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
                 send_data = "ok"
@@ -245,10 +281,36 @@ class Server(Thread):
                 conn.send(send_data)
 
             elif data[0]=="get_hb_info":
-                send_data = str(self.hb_ip)+" "+str(self.hp_port)
+                send_data = str(self.hb_ip)+" "+str(self.hb_port)
                 conn.send(send_data)
 
+            elif data[0]=="take_my_keys":
+                data = acdata
+                data = data.strip()
+                data = data.split('#')
+                ndic = json.loads(data[1])
+                self.key_table.update(ndic)
+                send_data = "ok"
+                conn.send(send_data)
+
+            elif data[0]=="repair_failure":
+                print self.finger_table[0][0],data
+                if int(data[2])!=self.position:
+                    if int(self.finger_table[0][0])==int(data[1]):
+                        self.finger_table[0] = [data[2],data[3],data[4]]
+                        send_data = "update_your_predecessor "+convert_to_string([self.position,self.ip,self.port])
+                        self.suc_hb_ip = data[5]
+                        self.suc_hb_port = data[6]
+                        sdata = client_connection(data[3],int(data[4]),send_data)
+                    self.update_finger(data[1],data[2],data[3],data[4],"Failsafe")
+                    send_data = "repair_failure "+data[1]+" "+data[2]+" "+data[3]+" "+data[4]
+                    data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
+                send_data = "ok"
+                conn.send(send_data)
             elif data[0]=="close":
                 break
+            else:
+                print data
+                print "bhadwe sahi command dal"
             conn.close()
         self.socket_listen.close()
