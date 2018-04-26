@@ -98,14 +98,14 @@ class Server(Thread):
         x = int(x)
         y = int(y)
         for i in range(1,self.M):
-            if self.belongTofunction((self.position+2**i)%self.total_node,x,y,True):
-                if flag:
-                    send_data = "find_succesor " + str((self.position+2**i)%self.total_node)
-                    data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
-                    data = data.strip()
-                    data = data.split()
-                    self.finger_table[i] = data
-                else:
+            if flag:
+                send_data = "find_succesor " + str((self.position+2**i)%self.total_node)
+                data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
+                data = data.strip()
+                data = data.split()
+                self.finger_table[i] = data
+            else:
+                if self.belongTofunction((self.position+2**i)%self.total_node,x,y,True):
                     self.finger_table[i] = [y,yip,yport]
     def run(self):
         while True:
