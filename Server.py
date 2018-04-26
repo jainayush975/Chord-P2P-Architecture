@@ -1,7 +1,7 @@
 import socket
 from threading import Thread
 import os, time
-
+import json
 
 def client_connection(ipc,ptc,send_data):
     ipc = str(ipc)
@@ -77,7 +77,7 @@ class Server(Thread):
     def find_succesor(self,sid):
         sid = int(sid)
         if sid == int(self.position):
-            return sid
+            return str(sid)
 
         if self.belongTofunction(sid,self.position,self.finger_table[0][0],True):
             return convert_to_string(self.finger_table[0])
@@ -109,6 +109,9 @@ class Server(Thread):
         self.update_finger(0,self.total_node-1,0,0,True)
         send_data = "ring_update "+str(self.predecessor[0])+" "+ str(self.position)+" "+str(self.ip)+" "+str(self.port)
         data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
+        send_data = "get_my_keys "+str(self.predecessor[0])
+        data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
+        self.key_table = json.loads(data)
 
     def update_finger(self,x,y,yip,yport,flag):
         x = int(x)
@@ -126,6 +129,7 @@ class Server(Thread):
 
     def add_key(self,key):
         key_id = hash(key)%self.total_node
+        print "actually where needs to add"+" "+str(key_id)
         key_ip = self.find_succesor(key_id)
         key_ip = key_ip.strip()
         key_ip = key_ip.split()
@@ -148,6 +152,17 @@ class Server(Thread):
     def retrieve_key(self, key):
         return str(self.key_table[key][0]) + " " + str(self.key_table[key][1])
 
+    def others_key_entry(self,l,r):
+        send_dic = {}
+        ac_dic = {}
+        for key in self.key_table:
+            key_id = hash(key)%self.total_node
+            if self.belongTofunction(key_id,l,r,True):
+                send_dic[key] = self.key_table[key]
+            else:
+                ac_dic[key] = self.key_table[key]
+        self.key_table = ac_dic
+        return send_dic
     def run(self):
         while True:
             conn, addr = self.socket_listen.accept()
@@ -186,6 +201,11 @@ class Server(Thread):
             elif data[0]=="retrieve_key":
                 to_send = self.retrieve_key(data[1])
                 conn.send(to_send)
+
+            elif data[0]=="get_my_keys":
+                send_dic = self.others_key_entry(data[1],self.predecessor[0])
+                send_data = json.dumps(send_dic)
+                conn.send(send_data)
 
             elif data[0]=="close":
                 break
