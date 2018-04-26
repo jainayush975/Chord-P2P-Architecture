@@ -34,6 +34,7 @@ class Server(Thread):
         self.finger_table = finger_table
         self.M = int(M)
         self.predecessor = predecessor
+        self.key_table = {}
         print 'Started Node at port: ', self.port, "at position :", self.position
     def create_ring(self):
         self.predecessor = [self.position,self.ip,self.port]
@@ -107,6 +108,16 @@ class Server(Thread):
             else:
                 if self.belongTofunction((self.position+2**i)%self.total_node,x,y,True):
                     self.finger_table[i] = [y,yip,yport]
+    def add_key(self,key):
+        key_id = hash(key)%self.total_node
+        key_ip = self.find_succesor(key_id)
+        key_ip = key_ip.strip()
+        key_ip = key_ip.split()
+        send_data = "update_key_table "+key+" "+str(self.ip)+" "+str(self.port)
+        data = client_connection(key_ip[1],key_ip[2],send_data)
+        return "key added succesfully"
+    def update_key_table(self,key,iip,iport):
+        self.key_table[key] = (iip,iport)
     def run(self):
         while True:
             conn, addr = self.socket_listen.accept()
@@ -135,6 +146,8 @@ class Server(Thread):
                     data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
                 send_data = "ok"
                 conn.send(send_data)
+            elif data[0]=="update_key_table":
+                update_key_table(data[1],data[2],data[3])
             elif data[0]=="close":
                 break
             conn.close()

@@ -38,6 +38,8 @@ while True:
 		print "Node joined succesfully"
 	elif x[0]=="find":
 		print active_server.find_succesor(x[1])
+	elif x[0]=="add_key":
+		print add_key(x[1])
 	elif x[0]=="close":
 		client_connection(ip,port,"close")
 		break
