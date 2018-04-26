@@ -7,10 +7,13 @@ def client_connection(ipc,ptc,send_data):
     ipc = str(ipc)
     ptc = int(ptc)
     client_request = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_request.connect((ipc,ptc))
-    client_request.send(send_data)
-    data = client_request.recv(1024)
-    client_request.close()
+    try:
+        client_request.connect((ipc,ptc))
+        client_request.send(send_data)
+        data = client_request.recv(1024)
+        client_request.close()
+    except:
+        data = "no connection possible"
     return data
 
 def convert_to_string(data):
@@ -25,6 +28,10 @@ class Server(Thread):
         Thread.__init__(self)
         self.ip = str(ip)
         self.port = int(port)
+        self.hb_ip = self.ip
+        self.hb_port = int(random.randint(10000,11000))
+        self.suc_hb_ip = None
+        self.suc_hb_port = None
         self.total_node = int(total_node)
         self.socket_listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -36,6 +43,29 @@ class Server(Thread):
         self.predecessor = predecessor
         self.key_table = {}
         print 'Started Node at port: ', self.port, "at position :", self.position
+
+    def send_heart_beat(self):
+        threading.Timer(5.0, self.send_heart_beat).start()
+        client_connection(self.suc_hb_ip, self.suc_hb_port, "I am alive")
+        return
+
+    def listen_heart_beat(self):
+        hb_listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        hb_listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        hb_listen.bind((self.hb_ip, self.hb_port))
+        hb_listen.listen(5)
+        hb_listen.settimeout(8)
+        while True:
+            data = "dead"
+            conn, addr = hb_listen.accept()
+            data = conn.recv(1024)
+            send_data = "ok"
+            if data != "I am alive":
+                repair_failure()
+            else:
+                conn.send(send_data)
+            conn.close()
+        self.socket_listen.close()
 
     def print_key_table(self):
         print "Key Table is "
@@ -112,7 +142,12 @@ class Server(Thread):
         send_data = "get_my_keys "+str(self.predecessor[0])
         data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
         self.key_table = json.loads(data)
-
+        send_data = "get_hb_info"
+        data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
+        data = data.strip()
+        data = data.split()
+        self.suc_hb_ip = data[0]
+        self.suc_hb_port = data[1]
     def update_finger(self,x,y,yip,yport,flag):
         x = int(x)
         y = int(y)
@@ -164,6 +199,8 @@ class Server(Thread):
         self.key_table = ac_dic
         return send_dic
     def run(self):
+        self.send_heart_beat()
+        thread.start_new_thread(self.listen_heart_beat, ())
         while True:
             conn, addr = self.socket_listen.accept()
             data = conn.recv(1024)
@@ -205,6 +242,10 @@ class Server(Thread):
             elif data[0]=="get_my_keys":
                 send_dic = self.others_key_entry(data[1],self.predecessor[0])
                 send_data = json.dumps(send_dic)
+                conn.send(send_data)
+
+            elif data[0]=="get_hb_info":
+                send_data = str(self.hb_ip)+" "+str(self.hp_port)
                 conn.send(send_data)
 
             elif data[0]=="close":
