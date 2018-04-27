@@ -29,6 +29,7 @@ def convert_to_string(data):
 class Server(Thread):
     def __init__(self, ip, port,total_node, predecessor,M,finger_table):
         Thread.__init__(self)
+        self.dead = False
         self.ip = str(ip)
         self.port = int(port)
         self.hb_ip = self.ip
@@ -49,6 +50,8 @@ class Server(Thread):
         print 'Started Node at port: ', self.port, "at position :", self.position
 
     def send_heart_beat(self):
+        if self.dead:
+            return
         self.hb_thread=threading.Timer(5.0, self.send_heart_beat).start()
         # print "in heartbead"
         if self.suc_hb_ip != "None":
@@ -62,6 +65,8 @@ class Server(Thread):
         hb_listen.listen(5)
         hb_listen.settimeout(15.0)
         while True:
+            if self.dead:
+                break
             data = "dead"
             try:
                 conn, addr = hb_listen.accept()
@@ -71,7 +76,7 @@ class Server(Thread):
                 conn.send(send_data)
                 conn.close()
             except:
-                print "predecessor down"
+                print "\npredecessor down"
                 if self.predecessor[0]==self.finger_table[0][0]:
                     self.predecessor = [self.position,self.ip,self.port]
                     for i in range(self.M):
@@ -137,7 +142,7 @@ class Server(Thread):
             send_data = "find_succesor "+str(sid)
             return client_connection(self.finger_table[nd][1],self.finger_table[nd][2],send_data)
 
-    def join(self,mip,mport):
+    def joinNode(self,mip,mport):
         mip = str(mip)
         mport = int(mport)
         self.predecessor = [0,0,0]
@@ -233,6 +238,8 @@ class Server(Thread):
         data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
     def run(self):
         while True:
+            if self.dead:
+                break
             conn, addr = self.socket_listen.accept()
             data = conn.recv(1024)
             acdata = data
@@ -283,7 +290,7 @@ class Server(Thread):
                 conn.send(send_data)
 
             elif data[0]=="repair_failure":
-                print self.finger_table[0][0],data
+                # print self.finger_table[0][0],data
                 if int(data[2])!=self.position:
                     if int(self.finger_table[0][0])==int(data[1]):
                         self.finger_table[0] = [data[2],data[3],data[4]]
@@ -296,6 +303,7 @@ class Server(Thread):
                     data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
                 send_data = "ok"
                 conn.send(send_data)
+                print "\nRepaired"
             elif data[0]=="close":
                 break
 

@@ -20,7 +20,6 @@ active_server = Server(ip, port,total_node, predecessor,mBit,finger)
 active_server.start()
 threads.append(active_server)
 
-
 while True:
 	x = raw_input("chord>> ")
 	if x=="":
@@ -35,7 +34,7 @@ while True:
 		print "Ring created with only node in it",active_server.position
 
 	elif x[0]=="join":
-		active_server.join(x[1],x[2])
+		active_server.joinNode(x[1],x[2])
 		print "Node joined succesfully"
 
 	elif x[0]=="find":
@@ -52,13 +51,13 @@ while True:
 
 	elif x[0]=="close":
 		active_server.take_my_keys()
+		active_server.dead = True
 		client_connection(ip,port,"close")
-		print "boom"
-		quit()
+		# quit()
 		break
 	elif x[0]=="print_hb":
 		print active_server.hb_ip
 		print active_server.hb_port
 		print active_server.suc_hb_ip
 		print active_server.suc_hb_port
-	active.join()
+	# active_server.join()
