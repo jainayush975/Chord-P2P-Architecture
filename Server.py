@@ -45,10 +45,11 @@ class Server(Thread):
         self.M = int(M)
         self.predecessor = predecessor
         self.key_table = {}
+        self.hb_thread = None
         print 'Started Node at port: ', self.port, "at position :", self.position
 
     def send_heart_beat(self):
-        threading.Timer(5.0, self.send_heart_beat).start()
+        self.hb_thread=threading.Timer(5.0, self.send_heart_beat).start()
         # print "in heartbead"
         if self.suc_hb_ip != "None":
             client_connection(self.suc_hb_ip, self.suc_hb_port, "I am alive")
@@ -84,7 +85,6 @@ class Server(Thread):
         self.socket_listen.close()
 
     def repair_failure(self):
-        print "makichud"
         send_data = "repair_failure "+str(self.predecessor[0])+" "+ str(self.position)+" "+str(self.ip)+" "+str(self.port)+ " "+str(self.hb_ip)+" "+str(self.hb_port)
         data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
     def print_key_table(self):
@@ -99,7 +99,6 @@ class Server(Thread):
             self.finger_table[i] = [self.position,self.ip,self.port]
         self.send_heart_beat()
         thread.start_new_thread(self.listen_heart_beat, ())
-
     def cpn(self,sid):
         for i in range(self.M-1,-1,-1):
             if self.belongTofunction(self.finger_table[i][0],self.position,sid,False):
@@ -230,8 +229,7 @@ class Server(Thread):
         return send_dic
 
     def take_my_keys(self):
-        x = json.dumps(self.key_table)
-        send_data = "take_my_keys "+x
+        send_data = json.dumps(self.key_table)
         data = client_connection(self.finger_table[0][1],self.finger_table[0][2],send_data)
     def run(self):
         while True:
@@ -284,15 +282,6 @@ class Server(Thread):
                 send_data = str(self.hb_ip)+" "+str(self.hb_port)
                 conn.send(send_data)
 
-            elif data[0]=="take_my_keys":
-                data = acdata
-                data = data.strip()
-                data = data.split('#')
-                ndic = json.loads(data[1])
-                self.key_table.update(ndic)
-                send_data = "ok"
-                conn.send(send_data)
-
             elif data[0]=="repair_failure":
                 print self.finger_table[0][0],data
                 if int(data[2])!=self.position:
@@ -309,8 +298,12 @@ class Server(Thread):
                 conn.send(send_data)
             elif data[0]=="close":
                 break
+
             else:
-                print data
-                print "bhadwe sahi command dal"
+                data = acdata
+                ndic = json.loads(data)
+                self.key_table.update(ndic)
+                send_data = "ok"
+                conn.send(send_data)
             conn.close()
         self.socket_listen.close()

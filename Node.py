@@ -23,6 +23,8 @@ threads.append(active_server)
 
 while True:
 	x = raw_input("chord>> ")
+	if x=="":
+		continue
 	x = x.strip()
 	x = x.split()
 	if x[0]=="print":
@@ -51,12 +53,12 @@ while True:
 	elif x[0]=="close":
 		active_server.take_my_keys()
 		client_connection(ip,port,"close")
-		exit()
+		print "boom"
+		quit()
 		break
 	elif x[0]=="print_hb":
 		print active_server.hb_ip
 		print active_server.hb_port
 		print active_server.suc_hb_ip
 		print active_server.suc_hb_port
-for t in threads:
-	t.join()
+	active.join()
